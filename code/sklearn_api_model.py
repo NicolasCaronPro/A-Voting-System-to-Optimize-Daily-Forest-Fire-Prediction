@@ -66,251 +66,7 @@ def read_object(filename: str, path : Path):
         logger.info(f'{path / filename} not found')
         return None
     return pickle.load(open(path / filename, 'rb'))
-
-def calculate_and_plot_feature_importance_shapley(X, y, feature_names, dir_output, target, figsize=(25, 10), task_type='classification'):
-    """
-    Calculate and plot feature importance using SHAP values from multiple tree-based models.
-
-    Parameters:
-    - X: DataFrame or 2D numpy array of features.
-    - y: Series or 1D numpy array of target values.
-    - feature_names: List of feature names.
-    - dir_output: Directory to save plots.
-    - target: Name of the target variable.
-    - mode: 'bar' for feature importance, 'beeswarm' for feature impact.
-    - figsize: Tuple for figure size.
-
-    Returns:
-    - DataFrame with feature importance averaged over all models.
-    """
-    print('Calculate and plot feature importance using SHAP values from multiple tree-based models.')
-    # Initialisation des modèles
-
-    #if (dir_output / f'importance_SHAP_{target}.pkl').is_file():
-    #    importance_df = read_object(f'importance_SHAP_{target}.pkl', dir_output)
-    #    return importance_df
-    
-    if task_type == 'classification':
-        models = [
-            ("Decision Tree", DecisionTreeClassifier(random_state=42)),
-            ("Random Forest", RandomForestClassifier(random_state=42)),
-            ("ExtraTrees", ExtraTreesClassifier(random_state=42)),
-            ("XGBoost", XGBClassifier(random_state=42, use_label_encoder=False)),
-            #("CatBoost", CatBoostClassifier(silent=True, random_state=42)),
-            ("LightGBM", LGBMClassifier(random_state=42))
-        ]
-    else:
-        models = [
-            ("Decision Tree", DecisionTreeRegressor(random_state=42)),
-            ("Random Forest", RandomForestRegressor(random_state=42)),
-            ("ExtraTrees", ExtraTreesRegressor(random_state=42)),
-            ("XGBoost", XGBRegressor(random_state=42, use_label_encoder=False)),
-            #("CatBoost", CatBoostClassifier(silent=True, random_state=42)),
-            ("LightGBM", LGBMRegressor(random_state=42))
-        ]
-
-    # Dictionnaire pour stocker les SHAP values moyennées
-    shap_importance = np.zeros(X.shape[1])
-
-    # Création du dossier de sortie
-    dir_output = Path(dir_output)
-    dir_output.mkdir(parents=True, exist_ok=True)
-
-    # Calcul des SHAP values pour chaque modèle
-    for model_name, model in models:
-        print(f'{model_name}')
-        try:
-            model.fit(X, y)
-            explainer = shap.Explainer(model, X)
-            shap_values = explainer.shap_values(X, y, check_additivity=False)  # SHAP values calculées
-
-            # Importance moyenne des SHAP values (valeur absolue moyenne)
-            mean_shap_values = np.abs(shap_values).mean(axis=(0, 2))  # Moyenne sur samples et classes
-
-            shap_importance += mean_shap_values
-
-        except Exception as e:
-            print(f"Erreur avec {model_name}: {e}")
-
-    # Calcul de l'importance moyenne des caractéristiques
-    average_importance = shap_importance / len(models)
-
-    # Création d'un DataFrame pour la visualisation
-    importance_df = pd.DataFrame({'Feature': feature_names, 'Average Importance': average_importance})
-    importance_df = importance_df.sort_values(by='Average Importance', ascending=False)
-    
-    # Génération du graphique d'importance
-    fig = plt.figure(figsize=figsize)
-    plt.bar(importance_df['Feature'], importance_df['Average Importance'], color='skyblue')
-    plt.ylabel('Average Importance (SHAP)', fontsize=18)
-    plt.xlabel('Feature Name', fontsize=18)
-    plt.title('Average Feature Importance (SHAP values)', fontsize=18)
-    plt.xticks(fontsize=14, rotation=90)
-    plt.yticks(fontsize=14)
-    plt.grid(True, linestyle='--', alpha=0.6)
-    plt.tight_layout()
-    # Sauvegarde du graphique
-    output_path = dir_output / f'Feature_Importance_SHAP_{target}.png'
-    plt.savefig(output_path)
-    plt.close(fig)
-
-    save_object(importance_df, f'importance_SHAP_{target}.pkl', dir_output)
-
-    """fig = plt.figure(figsize=figsize)
-    shap.plots.beeswarm(shap_values, show=False, max_display=20)
-    beeswarm_path = dir_output / f'Beeswarm_SHAP_{target}.png'
-    plt.savefig(beeswarm_path)
-    plt.close(fig)"""
-
-    return importance_df
-
-def plot_ecdf_with_threshold(df, dir_output, target_name, importance_col='Average Importance', feature_col='Feature', threshold=0.95):
-    """
-    Plots the ECDF of cumulative feature importances and adds a threshold line.
-
-    Parameters:
-    - df: pandas DataFrame containing the features and their importance.
-    - importance_col: str, the name of the column containing the feature importance values.
-    - feature_col: str, the name of the column containing the feature names.
-    - threshold: float, the threshold value for the ECDF (default is 0.95).
-
-    Returns:
-    - None, but displays a plot.
-    """
-
-    # Step 1: Sort the DataFrame by importance in descending order
-    df_sorted = df.sort_values(by=importance_col, ascending=False).reset_index(drop=True)
-
-    # Step 2: Calculate the cumulative sum of importances
-    df_sorted['cumulative_importance'] = df_sorted[importance_col].cumsum()
-
-    # Normalize the cumulative importance to get the ECDF
-#     df_sorted['ecdf'] = df_sorted['cumulative_importance'] / df_sorted['cumulative_importance'].iloc[-1]
-
-    # Step 3: Determine the feature corresponding to the threshold
-    threshold_index = np.argmax(df_sorted['cumulative_importance'] >= threshold)
-    
-    print('threshold_index:',threshold_index)
-    if threshold_index < len(df_sorted):
-        threshold_feature = df_sorted.iloc[threshold_index][feature_col]
-#         threshold_importance = df_sorted.iloc[threshold_index][importance_col]
-    else:
-        threshold_feature = None
-        threshold_importance = None
-
-    # Step 4: Plot the ECDF
-    fig = plt.figure(figsize=(20, 10))
-    plt.plot(df_sorted[feature_col], df_sorted['cumulative_importance'], color='blue', label='ECDF',marker='s')
-    plt.xticks(rotation=90,fontsize=14)  # Rotate x-axis labels for better readability
-    plt.yticks(fontsize=14)
-    plt.xlabel('Feature',fontsize=14)
-    plt.ylabel('ECDF',fontsize=14)
-    plt.title('ECDF of Cumulative Feature Importances')
-    plt.grid(True)
-
-    # Step 5: Add the threshold line
-    if threshold_feature is not None:
-        plt.axhline(y=threshold, color='red', linestyle='--', label=f'Threshold {threshold}')
-        plt.axvline(x=threshold_feature, color='red', linestyle='--')
-        plt.text(threshold_index + 0.02, threshold + 0.02, f'{threshold_index+1}',
-                 color='black', ha='center', va='bottom',fontsize=14)
-
-    plt.legend()
-    plt.tight_layout()
-
-    # Ensure the output directory exists
-    Path(dir_output).mkdir(parents=True, exist_ok=True)
-
-    # Save the image to the specified directory
-    output_path = Path(dir_output) / f'Feature_Importance_with_thresholds_{target_name}.png'
-    plt.savefig(output_path)
-    
-    plt.close(fig)
-
-    return df_sorted.head(threshold_index + 1)[feature_col].tolist(), df_sorted[feature_col].tolist()
-
-def calculate_and_plot_feature_importance(X, y, feature_names, dir_output, target, task_type='classification'):
-    """
-    Calculate and plot average feature importance from multiple tree-based models.
-
-    Parameters:
-    - X: Features as a DataFrame or 2D array.
-    - y: Labels as a 1D array or Series.
-    - feature_names: List of feature names.
-
-    Returns:
-    - A DataFrame with feature names and average importance.
-    - A bar plot showing the average feature importance.
-    """
-    #if (dir_output / f'importance_model_{target}.pkl').is_file():
-    #    importance_df = read_object(f'importance_model_{target}.pkl', dir_output)
-    #    return importance_df
-    
-    # Initialize models
-
-    print(f'Features importance in save {dir_output} for {target}')
-    if task_type == 'regression':
-        models = [
-                    ("Decision Tree", DecisionTreeRegressor(random_state=42)),
-                    ("Random Forest", RandomForestRegressor(random_state=42)),
-                    ("ExtraTrees", ExtraTreesRegressor(random_state=42)),
-                    ("XGBoost", XGBRegressor(random_state=42, use_label_encoder=False)),
-                    #("CatBoost", CatBoostClassifier(silent=True, random_state=42)),
-                    ("LightGBM", LGBMRegressor(random_state=42))
-                ]
-    else:
-        models = [
-            ("Decision Tree", DecisionTreeClassifier(random_state=42)),
-            ("Random Forest", RandomForestClassifier(random_state=42)),
-            ("ExtraTrees", ExtraTreesClassifier(random_state=42)),
-            ("XGBoost", XGBClassifier(random_state=42, use_label_encoder=False)),
-            ("CatBoost", CatBoostClassifier(silent=True, random_state=42)),
-            ("LightGBM", LGBMClassifier(random_state=42))
-        ]
-
-    # Dictionary to store feature importances
-    feature_importance = {}
-
-    # Fit models and collect feature importances
-    for model_name, model in models:
-        try:
-            model.fit(X, y)
-            importances = model.feature_importances_ / np.sum(model.feature_importances_)
-            feature_importance[model_name] = importances
-        except AttributeError:
-            print(f"Model {model_name} does not support feature importances.")
-
-    # Calculate average feature importance
-    importance_matrix = np.array(list(feature_importance.values()))
-    average_importance = np.mean(importance_matrix, axis=0)
-
-    # Create DataFrame for visualization
-    importance_df = pd.DataFrame({'Feature': feature_names, 'Average Importance': average_importance})
-    importance_df = importance_df.sort_values(by='Average Importance', ascending=False)
-
-    # Plot feature importance
-    fig = plt.figure(figsize=(25, 10))
-    plt.bar(importance_df['Feature'], importance_df['Average Importance'], color='skyblue')
-    plt.ylabel('Average Importance', fontsize=18)
-    plt.xlabel('Feature Name', fontsize=18)
-    plt.title('Average Feature Importance from Tree-Based Models', fontsize=18)
-    plt.xticks(fontsize=14, rotation=90)
-    plt.yticks(fontsize=14)
-    plt.grid(True, linestyle='--', alpha=0.6)
-    plt.tight_layout()
-    # Ensure the output directory exists
-    Path(dir_output).mkdir(parents=True, exist_ok=True)
-
-    # Save the image to the specified directory
-    output_path = Path(dir_output) / f'Feature_Importance_{target}.png'
-    plt.savefig(output_path)
-    
-    plt.close(fig)
-    save_object(importance_df, f'importance_model_{target}.pkl', dir_output)
-
-    return importance_df
-
-                
+      
 ##########################################################################################
 #                                                                                        #
 #                                   Base class                                           #
@@ -396,35 +152,6 @@ class Model(BaseEstimator, ClassifierMixin, RegressorMixin):
         y_train_score_combined.reset_index(drop=True, inplace=True)
 
         return X_combined, y_combined, y_train_score_combined
-    
-    def add_ordinal_class(self, X, y, limit):        
-        # Separate the positive and zero classes based on y
-
-        non_fire_mask = (X['potential_risk'] == limit) & (y == 0)
-        positive_mask = ~non_fire_mask
-
-        X_positive = X[positive_mask]
-        y_positive = y[positive_mask]
-
-        X_non_fire = X[non_fire_mask]
-        y_non_fire = y[non_fire_mask]
-
-        # Sample non-fire data
-        nb = min(len(X_non_fire), nb)
-        print(nb, len(X_non_fire))
-        sampled_indices = np.random.RandomState(42).choice(len(X_non_fire), nb, replace=False)
-        X_non_fire_sampled = X_non_fire.iloc[sampled_indices] if isinstance(X, pd.DataFrame) else X_non_fire[sampled_indices]
-
-        y_non_fire_sampled = X_non_fire.iloc[sampled_indices]['potential_risk']
-
-        X_combined = pd.concat([X_positive, X_non_fire_sampled]) if isinstance(X, pd.DataFrame) else np.concatenate([X_positive, X_non_fire_sampled])
-        y_combined = pd.concat([y_positive, y_non_fire_sampled]) if isinstance(y, pd.Series) else np.concatenate([y_positive, y_non_fire_sampled])
-
-        # Update X and y for training
-        X_combined.reset_index(drop=True, inplace=True)
-        y_combined.reset_index(drop=True, inplace=True)
-
-        return X_combined, y_combined
     
     def search_samples_proportion(self, X, y, X_val, y_val, X_test, y_test, y_train_score=None, y_val_score=None, y_test_score=None, is_unknowed_risk=False):
 
@@ -629,116 +356,8 @@ class Model(BaseEstimator, ClassifierMixin, RegressorMixin):
 
         print(f'All metrics : {self.metrics}')
         print(f'Metrics achieved with best percentage {best_tp} {self.metrics[best_tp]}')
-
-        if is_unknowed_risk:
-            plt.figure(figsize=(15, 7))
-            plt.plot(test_percentage[:len(under_prediction_score_scores)], under_prediction_score_scores, label='under_prediction')
-            plt.plot(test_percentage[:len(under_prediction_score_scores)], over_prediction_score_scores, label='over_prediction')
-            plt.plot(test_percentage[:len(under_prediction_score_scores)], iou_scores, label='IoU')
-            plt.xticks(test_percentage)
-            plt.xlabel('Percentage of Unknowed sample')
-            plt.ylabel('IOU Score')
-
-            # Ajouter une ligne verticale pour le meilleur pourcentage (best_tp)
-            plt.axvline(x=best_tp, color='r', linestyle='--', label=f'Best TP: {best_tp:.2f}')
-            
-            # Ajouter une légende
-            plt.legend()
-
-            # Sauvegarder et fermer la figure
-            plt.savefig(self.dir_log / f'{self.name}_unknowned_scores_per_percentage.png')
-            plt.close()
-            save_object([test_percentage, under_prediction_score_scores, over_prediction_score_scores, iou_scores], 'unknowned_scores_per_percentage.pkl', self.dir_log)
-        else:
-            plt.figure(figsize=(15, 7))
-            #plt.plot(test_percentage[:len(iou_scores)], under_prediction_score_scores, label='under_prediction')
-            #plt.plot(test_percentage[:len(iou_scores)], over_prediction_score_scores, label='over_prediction')
-            plt.plot(test_percentage[:len(iou_scores)], iou_scores, label='IoU')
-            plt.xticks(test_percentage)
-            plt.xlabel('Percentage of Binary sample')
-            plt.ylabel('IOU Score')
-
-            # Ajouter une ligne verticale pour le meilleur pourcentage (best_tp)
-            plt.axvline(x=best_tp, color='r', linestyle='--', label=f'Best TP: {best_tp:.2f}')
-            
-            # Ajouter une légende
-            plt.legend()
-
-            # Sauvegarder et fermer la figure
-            plt.savefig(self.dir_log / f'{self.name}_scores_per_percentage.png')
-            plt.close()
-            save_object([test_percentage, under_prediction_score_scores, over_prediction_score_scores, iou_scores], 'test_percentage_scores.pkl', self.dir_log)
-
+        
         return best_tp
-
-    def search_samples_limit(self, X, y, X_val, y_val, X_test, y_test):
-        classes = [4,3,2,1]
-        under_prediction_score_scores = []
-        over_prediction_score_scores = []
-
-        copy_model = copy.deepcopy(self)
-        copy_model.under_sampling = 'full'
-
-        copy_model.fit(X_combined, y_combined, X_val, y_val, X_test=X_test, y_test=y_test, training_mode='normal', optimization='skip', grid_params=None, fit_params={}, cv_folds=10)
-        
-        prediction = copy_model.predict(X_test)
-        
-        under_prediction_score_value = under_prediction_score(y_test, prediction)
-        over_prediction_score_value = over_prediction_score(y_test, prediction)
-        
-        under_prediction_score_scores.append(under_prediction_score_value)
-        over_prediction_score_scores.append(over_prediction_score_value)
-        for c in classes:
-            
-            print(f'Trained with {c}')
-
-            X_combined, y_combined = self.split_dataset(X, y, c)
-
-            print(f'Train mask X shape: {X_combined.shape}, y shape: {y_combined.shape}')
-
-            copy_model = copy.deepcopy(self)
-            copy_model.under_sampling = 'full'
-
-            copy_model.fit(X_combined, y_combined, X_val, y_val, X_test=X_test, y_test=y_test, y_test_score=y_test_score, training_mode='normal', optimization='skip', grid_params=None, fit_params={}, cv_folds=10)
-            
-            prediction = copy_model.predict(X_test)
-            
-            under_prediction_score_value = under_prediction_score(y_test, prediction)
-            over_prediction_score_value = over_prediction_score(y_test, prediction)
-            
-            under_prediction_score_scores.append(under_prediction_score_value)
-            over_prediction_score_scores.append(over_prediction_score_value)
-
-            print(f'Under achieved : {under_prediction_score_value}, Over achived {over_prediction_score_value}')
-        
-        # Find the index where the two scores cross (i.e., where the difference changes sign)
-        score_differences = np.array(under_prediction_score_scores) - np.array(over_prediction_score_scores)
-
-        if score_differences.shape[0] >  0:
-            index_max = np.argmin(np.abs(score_differences))
-            best_tp = classes[index_max]         
-        
-            plt.figure(figsize=(15, 7))
-            plt.plot(classes, under_prediction_score_scores, label='under_prediction')
-            plt.plot(classes, over_prediction_score_scores, label='over_prediction')
-            plt.xticks(classes)
-            plt.xlabel('Percentage of Binary sample')
-            plt.ylabel('IOU Score')
-
-            # Ajouter une ligne verticale pour le meilleur pourcentage (best_tp)
-            plt.axvline(x=best_tp, color='r', linestyle='--', label=f'Best TP: {best_tp:.2f}')
-            
-            # Ajouter une légende
-            plt.legend()
-
-            # Sauvegarder et fermer la figure
-            plt.savefig(self.dir_log / f'{self.name}_scores_per_classes.png')
-            plt.close()
-
-            save_object([classes, under_prediction_score_scores, over_prediction_score_scores], 'test_classes_scores.pkl', self.dir_log)
-            return best_tp
-        else:
-            return 1.0
 
     def fit(self, X, y, X_val, y_val, X_test=None, y_test=None, y_val_score=None, y_train_score=None, y_test_score=None, training_mode='normal', optimization='skip', grid_params=None, fit_params={}, cv_folds=10):
         """
@@ -964,43 +583,6 @@ class Model(BaseEstimator, ClassifierMixin, RegressorMixin):
         if self.post_process is not None:
             res = self.post_process.predict(res)
         return res
-    
-    def predict_nbsinister(self, X, ids=None, preprocessor_ids=None):
-        
-        if self.target_name == 'nbsinister':
-            return self.predict(X)
-        else:
-            predict = self.predict(X)
-            if self.post_process is not None:
-                return self.post_process.predict_nbsinister(predict, ids)
-            return predict
-    
-    def predict_risk(self, X, ids=None, preprocessor_ids=None):
-
-        if self.task_type == 'classification' or self.task_type == 'ordinal-classification':
-            return self.predict(X)
-        
-        elif self.task_type == 'binary':
-                predict = self.predict_proba(X)[:, 1]
-                if self.post_process is not None:
-                    if isinstance(ids, pd.Series):
-                        ids = ids.values
-                    if isinstance(preprocessor_ids, pd.Series):
-                        preprocessor_ids = preprocessor_ids.values
-
-                    return self.post_process.predict_risk(predict, None, ids, preprocessor_ids)
-                return predict
-        else:
-            predict = self.predict(X)
-            if self.post_process is not None:
-
-                if isinstance(ids, pd.Series):
-                    ids = ids.values
-                if isinstance(preprocessor_ids, pd.Series):
-                    preprocessor_ids = preprocessor_ids.values
-
-                return self.post_process.predict_risk(predict, None, ids, preprocessor_ids)
-            return predict
         
     def predict_proba(self, X):
         """
@@ -1281,88 +863,6 @@ class Model(BaseEstimator, ClassifierMixin, RegressorMixin):
         df_features = pd.concat(df_features)
         save_object(df_features, 'features_importance.pkl', dir_output)
 
-    def fit_by_features(self, X, y, X_val, y_val, X_test, y_test, features, sample_weight, select):
-        final_selected_features = []
-        final_score = []
-        num_iteration = 1
-        iter_score = -math.inf
-
-        for num_iter in range(num_iteration):
-            print(f'###############################################################')
-            print(f'#                                                             #')
-            print(f'#                 Iteration {num_iter + 1}                              #')
-            print(f'#                                                             #')
-            print(f'###############################################################')
-            selected_features_ = []
-            score_ = []
-            all_score = []
-            all_features = []
-            base_score = -math.inf
-            count_max = 50
-            c = 0
-            model = copy.deepcopy(self.best_estimator_)
-
-            if num_iter != 0:
-                random.shuffle(features)
-
-            for i, fet in enumerate(features):
-                selected_features_.append(fet)
-
-                X_train_single = X[selected_features_]
-                
-                fit_params = self.update_fit_params(X_val, y_val, sample_weight, selected_features_)
-
-                model.fit(X=X_train_single, y=y, **fit_params)
-                self.best_estimator_ = copy.deepcopy(model)
-                self.features_selected = selected_features_
-
-                score = self.score(X_test[selected_features_], y_test)
-                single_feature_score = self.get_all_scores(X_test[selected_features_], y_test)
-                print(f'All score achived wiht {fet} : {single_feature_score.to_dict()}')
-
-                single_feature_score['Feature'] = fet
-                all_score.append(single_feature_score)
-                all_features.append(fet)
-                if select:
-                    if score <= base_score:
-                        selected_features_.pop(-1)
-                        c += 1
-                    else:
-                        print(f'With {fet} number {i}: {base_score} -> {single_feature_score}')
-                        base_score = single_feature_score
-                        score_.append(single_feature_score)
-                        c = 0
-
-                    if c > count_max:
-                        print(f'Score didn t improove for {count_max} features, we break')
-                        break
-
-            if select:
-                if base_score > iter_score:
-                    final_score = pd.concat(score_).reset_index(drop=True)
-                    iter_score = base_score
-                    final_selected_features = list(final_score.Feature.values)
-            else:
-                iter_score = base_score
-                final_selected_features = list(final_score['Feature'], values)
-                final_score = pd.concat(score_).reset_index(drop=True)
-
-        plt.figure(figsize=(15,10))
-        x_score = np.arange(len(final_selected_features))
-        plt.plot(x_score, final_score['iou'].values, label='iou')
-        plt.plot(x_score, final_score['iou_wildfire_or_pred'], label='iou_wildfire_or_pred')
-        plt.plot(x_score, final_score['iou_wildfire_detected'], label='wildfire_detected')
-        plt.plot(x_score, final_score['iou_wildfire_and_pred'], label='iou_wildfire_and_pred')
-        plt.plot(x_score, final_score['bad_prediction'], label='bad_prediction')
-        plt.legend()
-        plt.xticks(x_score, final_selected_features, rotation=90)
-        plt.savefig(self.dir_log / f'scores_by_features.png')
-        plt.close('all')
-
-        save_object(final_score, f'scores_by_features.pkl', self.dir_log)
-
-        return final_selected_features, final_score
-
     def update_fit_params(self, X_val, y_val, sample_weight, features_selected):
         if self.model_type == 'xgboost':
             fit_params = {
@@ -1439,36 +939,6 @@ class Model(BaseEstimator, ClassifierMixin, RegressorMixin):
             raise ValueError(f"Unsupported model model_type: {self.model_type}")
         
         return fit_params
-
-    def plot_param_influence(self, param, dir_output, figsize=(25,25)):
-        """
-        Display the influence of parameters on model performance.
-
-        Parameters:
-        - param: The parameter to visualize.
-        - dir_output: Directory to save the plot.
-        """
-        if self.cv_results_ is None:
-            raise AttributeError(
-                "Grid search or bayes search results not available. Please run GridSearchCV or BayesSearchCV first.")
-
-        if param not in self.cv_results_['params'][0]:
-            raise ValueError(
-                f"The parameter {param} is not in the grid or bayes search results.")
-
-        param_values = [result[param] for result in self.cv_results_['params']]
-        means = self.cv_results_['mean_test_score']
-        stds = self.cv_results_['std_test_score']
-
-        plt.figure(figsize=figsize)
-        plt.title(f"Influence of {param} on performance for {self.name}")
-        plt.xlabel(param)
-        plt.ylabel("Mean score")
-        plt.errorbar(param_values, means, yerr=stds, fmt='-o')
-        plt.grid(True)
-        plt.tight_layout()
-        plt.savefig(Path(dir_output) / f"{self.name}_{param}_influence.png")
-        plt.close('all')
 
     def log(self, dir_output):
         assert self.final_score is not None
@@ -1666,42 +1136,7 @@ class ModelVoting(RegressorMixin, ClassifierMixin):
         plt.close('all')
 
         save_object([model_names, self.weights_for_model, self.weights_for_model_self], f'weights.pkl', self.dir_log)
-
-    def predict_nbsinister(self, X, ids=None, preprocessor_ids=None, hard_or_soft='soft', weights_average=True, top_model='all'):
         
-        if self.target_name == 'nbsinister':
-            return self.predict(X)
-        else:
-            assert self.post_process is not None
-            predict = self.predict(X, hard_or_soft=hard_or_soft, weights_average=weights_average, top_model=top_model)
-            return self.post_process.predict_nbsinister(predict, ids)
-    
-    def predict_risk(self, X, ids=None, preprocessor_ids=None, hard_or_soft='soft', weights_average=True, top_model='all'):
-
-        if self.task_type == 'classification' or self.task_type == 'ordinal-classification':
-            return self.predict(X, hard_or_soft=hard_or_soft, weights_average=weights_average, top_model=top_model)
-        
-        elif self.task_type == 'binary':
-                assert self.post_process is not None
-                predict = self.predict_proba(X, weights_average=weights_average)[:, 1]
-
-                if isinstance(ids, pd.Series):
-                    ids = ids.values
-                if isinstance(preprocessor_ids, pd.Series):
-                    preprocessor_ids = preprocessor_ids.values
-    
-                return self.post_process.predict_risk(predict, None, ids, preprocessor_ids)
-        else:
-            assert self.post_process is not None
-            predict = self.predict(X)
-
-            if isinstance(ids, pd.Series):
-                ids = ids.values
-            if isinstance(preprocessor_ids, pd.Series):
-                preprocessor_ids = preprocessor_ids.values
-
-            return self.post_process.predict_risk(predict, None, ids, preprocessor_ids)
-
     def predict_with_weight(self, X, hard_or_soft='soft', weights_average='weight', weights2use=[], top_model='all'):
         
         models_list = np.asarray([estimator.name for estimator in self.best_estimator_])
@@ -1812,34 +1247,6 @@ class ModelVoting(RegressorMixin, ClassifierMixin):
         else:
             return self.predict_with_weight(X, hard_or_soft=hard_or_soft, weights_average='weight', weights2use=self.weights_for_model, top_model=top_model)
 
-        """print(f'Predict with {hard_or_soft} and weighs at {weights_average}')
-        if hard_or_soft == 'hard':
-            if top_model != 'all':
-                top_model = int(top_model)
-                key = np.argsort(self.weights_for_model)
-                models_list = models_list[key]
-                models_list = models_list[-top_model:]
-            else:
-                key = np.arange(0, len(self.best_estimator_))
-
-            predictions = []
-            for i, estimator in enumerate(self.best_estimator_):
-                if estimator.name not in models_list:
-                    continue
-                else:
-                    pred = estimator.predict(X)
-                    predictions.append(pred)
-
-                models_to_mean.append(key[i])
-
-            # Aggregate predictions
-            aggregated_pred = self.aggregate_predictions(predictions, models_to_mean, weights_average)
-            return aggregated_pred
-        else:
-            aggregated_pred = self.predict_proba(X, weights_average, top_model)
-            predictions = np.argmax(aggregated_pred, axis=1)
-            return predictions"""
-
     def predict_proba(self, X, weights_average='weight', top_model='all', id_col=(None, None)):
         """
         Predict probabilities for input data using each model and aggregate the results.
@@ -1864,37 +1271,6 @@ class ModelVoting(RegressorMixin, ClassifierMixin):
 
         else:
             return self.predict_proba_with_weights(X, hard_or_soft='soft', weights_average='weight', weights2use=self.weights_for_model, top_model=top_model)
-
-        """models_list = np.asarray([estimator.name for estimator in self.best_estimator_])
-
-        if top_model != 'all':
-                top_model = int(top_model)
-                key = np.argsort(self.weights_for_model)
-                models_list = models_list[np.asarray(key)]
-                models_list = models_list[-top_model:]
-        else:
-            key = np.arange(0, len(self.best_estimator_))
-        
-        print(models_list)
-        probas = []
-        models_to_mean = []
-        for i, estimator in enumerate(self.best_estimator_):
-            if estimator.name not in models_list:
-                continue
-            X_ = X
-            if hasattr(estimator, "predict_proba"):
-                proba = estimator.predict_proba(X_)
-                if proba.shape[1] != 5:
-                    continue
-                #print(estimator.name, np.asarray(probas).shape)
-                models_to_mean.append(key[i])
-                probas.append(proba)
-            else:
-                raise AttributeError(f"The model at index {i} does not support predict_proba.")
-            
-        # Aggregate probabilities
-        aggregated_proba = self.aggregate_probabilities(probas, models_to_mean, weights_average)
-        return aggregated_proba"""
 
     def aggregate_predictions(self, predictions_list, models_to_mean, weight2use=[], id_col=(None, None)):
         """
@@ -1928,29 +1304,6 @@ class ModelVoting(RegressorMixin, ClassifierMixin):
         
         return aggregated_pred
 
-    """def aggregate_predictions_id(self, predictions_array, models_to_mean, id_col=(None, None)):
-        assert id_col[0] is not None and id_col[1] is not None
-        id = id_col[0]
-        vals = id_col[1]
-        uvals = np.unique(vals)
-
-        weight2use = np.zeros((len(models_to_mean), predictions_array.shape[1]))
-        for val in uvals:
-            mask = (vals == val)
-            weight2use[:, mask] = self.weights_id_model[id][val][models_to_mean]
-            if np.all(weight2use[:, mask] == 0):
-                weight2use[:, mask] = self.weights_for_model[models_to_mean]
-
-        unique_classes = np.arange(0, 5)
-        weighted_votes = np.zeros((len(unique_classes), predictions_array.shape[1]))
-
-        for i, cls in enumerate(unique_classes):
-            mask = (predictions_array == cls)
-            weighted_votes[i] = np.sum(mask * weight2use, axis=0)
-
-        aggregated_pred = unique_classes[np.argmax(weighted_votes, axis=0)]
-        return aggregated_pred"""   
-
     def aggregate_probabilities(self, probas_list, models_to_mean, weight2use=[], id_col=(None, None)):
         """
         Aggregate probabilities from multiple models with weights.
@@ -1970,23 +1323,6 @@ class ModelVoting(RegressorMixin, ClassifierMixin):
         aggregated_proba = weighted_sum / np.sum(weight2use)
         #aggregated_proba = np.max(probas_array * weight2use[:, None, None], axis=0)
         return aggregated_proba
-    
-    """def aggregate_probabilities_id(self, probas_array, models_to_mean, id_col=(None, None)):
-        assert id_col[0] is not None and id_col[1] is not None
-        id = id_col[0]
-        vals = id_col[1]
-        uvals = np.unique(vals)
-        weight2use = np.zeros((len(models_to_mean), probas_array.shape[1]))
-        for val in uvals:
-            mask = (vals == val)
-            weight2use[:, mask] = self.weights_id_model[id][val][models_to_mean]
-            if np.all(weight2use[:, mask] == 0):
-                weight2use[:, mask] = self.weights_for_model[models_to_mean]
-
-        #aggregated_proba = np.max(probas_array * weight2use[:, :, None], axis=0)
-        weighted_sum = np.sum(probas_array * weight2use[:, None, None], axis=0)
-        aggregated_proba = weighted_sum / np.sum(weight2use)
-        return aggregated_proba"""
 
     def score(self, X, y, sample_weight=None):
         """
