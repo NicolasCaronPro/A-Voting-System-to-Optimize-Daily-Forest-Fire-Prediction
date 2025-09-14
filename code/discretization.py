@@ -755,78 +755,11 @@ class ScalerClassRisk:
                 # Apply the lambda function using np.vectorize for the condition `sinisters > 0`
                 predictions[sinisters > 0] = np.vectorize(lambda_function)(predictions[sinisters > 0])
 
-        """if ids_preprocessor is not None:
-            fig, ax = plt.subplots(2, figsize=(15,5))
-            ax[0].plot(predictions[ids_preprocessor[:, 1] == 4])
-            ax[1].plot(X[ids_preprocessor[:, 1] == 4])
-            plt.show()"""
-
         return predictions
 
     def fit_predict(self, X, ids, sinisters, ids_preprocessor=None):
         self.fit(X, ids, sinisters, ids_preprocessor)
         return self.predict(X, ids, ids_preprocessor)
-
-    def predict_stat(self, X, ids, stat_key):
-        """
-        Generic method to predict statistics (mean, min, max) for sinistres based on the class of each sample.
-
-        :param X: Array of input values.
-        :param ids: Array of IDs corresponding to each value in X.
-        :param stat_key: Key to fetch the required statistic ('sinistres_mean', 'sinistres_min', 'sinistres_max').
-        :return: Array of predicted statistics for each sample based on its class.
-        """
-        if len(X.shape) == 1:
-            X = X.reshape(-1, 1)
-
-        predictions = np.zeros(X.shape[0])
-
-        for unique_id, model in self.models_by_id.items():
-            if unique_id not in np.unique(ids):
-                continue
-
-            mask = ids == unique_id
-            
-            stats = model[stat_key]
-            predictions[mask] = np.array([stats[int(cls)] for cls in X[mask]])
-
-        return predictions
-
-    def predict_nbsinister(self, X, ids):
-        """
-        Predict the mean sinistres for the class of each instance in X.
-
-        :param X: Array of input values.
-        :param ids: Array of IDs corresponding to each value in X.
-        :return: Array of predicted mean sinistres for each class.
-        """
-        return self.predict_stat(X, ids, stat_key='sinistres_mean')
-
-    def predict_nbsinister_min(self, X, ids):
-        """
-        Predict the minimum sinistres for the class of each instance in X.
-
-        :param X: Array of input values.
-        :param ids: Array of IDs corresponding to each value in X.
-        :return: Array of predicted minimum sinistres for each class.
-        """
-        return self.predict_stat(X, ids, stat_key='sinistres_min')
-
-    def predict_nbsinister_max(self, X, ids):
-        """
-        Predict the maximum sinistres for the class of each instance in X.
-
-        :param X: Array of input values.
-        :param ids: Array of IDs corresponding to each value in X.
-        :return: Array of predicted maximum sinistres for each class.
-        """
-        return self.predict_stat(X, ids, stat_key='sinistres_max')
-    
-    def predict_risk(self, X, sinisters, ids, ids_preprocessor=None):
-        if self.is_fit:
-            return self.predict(X, sinisters, ids, ids_preprocessor)
-        else:
-            return self.fit_predict(X, sinisters, ids, ids_preprocessor)
 
 def create_risk_target(train_dataset, val_dataset, test_dataset, dir_post_process, graph):
 
@@ -972,12 +905,7 @@ def create_risk_target(train_dataset, val_dataset, test_dataset, dir_post_proces
                 test_dataset_['departement'].values,
                 test_dataset_[['month_non_encoder', 'graph_id']].values
             )
-
-            train_col = f"burnedareaDaily-kmeans-{n_clusters}-Class-Dept-{conv_type}-{kernel}-Past"
-
-            # Sélection du préprocesseur
-            preprocessor = PreprocessorConv(graph=graph, conv_type=conv_type, kernel=kernel, id_col=['month_non_encoder', 'graph_id'], persistence=True)
-
+            
             res[obj.name] = deepcopy(obj)
             new_cols.append(train_col)
 
