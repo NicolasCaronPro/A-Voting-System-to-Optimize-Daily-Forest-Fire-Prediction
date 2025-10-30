@@ -14,8 +14,7 @@ Forest-fire prediction using Artificial Intelligence (AI) continues to face majo
 | `code/sklearn_api_model.py` | Provides a scikit-learn compatible API to train, tune, and evaluate classic ensembles, metrics. Provide the code for the voting system, a similar class can be employed for pytorch models |
 
 ## Voting system
-
-
+The system trains each model on every risk-level configuration, modified by filtering and subsequently clustered using K-Means, and then performs voting over the predicted class probabilities. The primary limitation of this approach is the computational cost: training may require several days or even weeks depending on the complexity of the model. To experiment with your own data, we recommend starting with a simpler model such as logistic regression, which already provides highly satisfactory results.
 
 ## Typical usage
 
