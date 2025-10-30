@@ -16,12 +16,12 @@ Forest-fire prediction using Artificial Intelligence (AI) continues to face majo
 
 ## Voting system
 
-Both the PyTorch module (`code/pytorch_models.py`) and the scikit-learn module (`code/sklearn_api_model.py`) follow an aligned voting workflow. Each produces calibrated risk estimates that can be combined into weighted ensembles. This symmetry makes it straightforward to blend deep learning and traditional models when validating or deploying the system.
+
 
 ## Typical usage
 
 1. **Preprocessing and discretization** – Functions in `code/discretization.py` transform the input series (incident counts, meteorological signals) into consistent risk classes per region.
-2. **Model training** – PyTorch architectures and scikit-learn ensembles are trained in parallel on the same feature sets to leverage the complementarity between neural and statistical approaches.
+2. **Model training** – PyTorch architectures or scikit-learn ensembles are trained in parallel on the same feature sets to leverage the complementarity between neural and statistical approaches.
 3. **Ensemble aggregation** – Normalized outputs are fused via the shared voting system to boost daily prediction robustness, especially for extreme events.
 
 For additional mathematical and experimental details, consult `supplementary_materials.pdf`.
