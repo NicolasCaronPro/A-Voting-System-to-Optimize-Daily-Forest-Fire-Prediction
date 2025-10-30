@@ -8,11 +8,10 @@ Forest-fire prediction using Artificial Intelligence (AI) continues to face majo
 
 | Path | Description |
 | --- | --- |
-| `README` | Presents a high-level overview of the project, the file layout, and how the modules interact. |
 | `supplementary_materials.pdf` | Additional analyses, figures, and experimental results supporting the manuscript. |
-| `code/discretization.py` | Implements the risk discretization strategies (K-Means, thresholding, quantiles, KS) and preprocessing pipelines (seasonal convolutions, Gaussian/cubic/quartic smoothing, persistence) that prepare the signals and aggregate observations by territory. |
+| `code/discretization.py` | Implements the risk discretization strategies (K-Means) and preprocessing pipelines (seasonal convolutions, Gaussian/cubic/quartic smoothing, persistence) that prepare the signals and aggregate observations by territory. |
 | `code/pytorch_models.py` | Defines the PyTorch architectures (MLP, dilated CNN, GRU, GNN) and their temporal decoders used to model the risk dynamics from spatio-temporal sequences. |
-| `code/sklearn_api_model.py` | Provides a scikit-learn compatible API to train, tune, and evaluate classic ensembles (random forests, Extra Trees, regressions, stacking, etc.), including resampling, metrics, and explainability (SHAP). |
+| `code/sklearn_api_model.py` | Provides a scikit-learn compatible API to train, tune, and evaluate classic ensembles, metrics. Provide the code for the voting system, a similar class can be employed for pytorch models |
 
 ## Voting system
 
