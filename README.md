@@ -16,6 +16,9 @@ Forest-fire prediction using Artificial Intelligence (AI) continues to face majo
 ## Voting system
 The system trains each model on every risk-level configuration, modified by filtering and subsequently clustered using K-Means, and then performs voting over the predicted class probabilities. The primary limitation of this approach is the computational cost: training may require several days or even weeks depending on the complexity of the model. To experiment with your own data, we recommend starting with a simpler model such as logistic regression, which already provides highly satisfactory results.
 
+## Data
+Dataset reconstuction code is avaibled in `https://github.com/NicolasCaronPro/Localized-Forest-Fire-Risk-Prediction-ADepartment-Aware-Approach-for-Operational-DecisionSupport`
+
 ## Typical usage
 
 1. **Preprocessing and discretization** – Functions in `code/discretization.py` transform the input series (incident counts, meteorological signals) into consistent risk classes per region.
@@ -23,3 +26,4 @@ The system trains each model on every risk-level configuration, modified by filt
 3. **Ensemble aggregation** – Normalized outputs are fused via the shared voting system to boost daily prediction robustness, especially for extreme events.
 
 For additional mathematical and experimental details, consult `supplementary_materials.pdf`.
+
